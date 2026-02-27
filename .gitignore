@@ -4,3 +4,7 @@
 /npm-debug.log
 .DS_Store
 .prettierignore
+
+# AI 生成的文档和脚本（包含敏感信息）
+/ai-docs
+/scripts

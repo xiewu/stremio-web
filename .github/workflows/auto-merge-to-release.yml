@@ -1,0 +1,44 @@
+name: Auto Merge to Release
+
+on:
+  push:
+    branches:
+      - development
+  workflow_dispatch:
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: auto-merge-dev-to-release-${{ github.sha }}
+          base: release
+          title: "Auto merge: development → release"
+          body: |
+            ## 自动合并请求
+            
+            此 PR 由 GitHub Actions 自动创建，将 `development` 分支的最新更改合并到 `release` 分支。
+            
+            ### 变更内容
+            - Commit: ${{ github.sha }}
+            - Author: ${{ github.actor }}
+            - Message: ${{ github.event.head_commit.message }}
+            
+            ### 部署信息
+            合并后将自动触发部署到 Docker Swarm 集群：
+            - 域名: https://live.xlab.host
+            - 集群: 156.238.229.238 (Manager)
+            
+            请审查变更后合并此 PR。
+          labels: |
+            auto-merge
+            deployment
+          delete-branch: true
