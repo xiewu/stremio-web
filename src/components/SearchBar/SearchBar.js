@@ -10,7 +10,7 @@ const styles = require('./styles');
 
 const SearchBar = ({ className, title, value, onChange }) => {
     return (
-        <label title={title} className={classnames(className, styles['search-bar-container'])}>
+        <label dataId='1' title={title} className={classnames(className, styles['search-bar-container'])}>
             <TextInput
                 className={styles['search-input']}
                 type={'text'}
