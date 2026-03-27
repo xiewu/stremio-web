@@ -92,12 +92,15 @@ const Player = ({ urlParams, queryParams }) => {
     const defaultSubtitlesSelected = React.useRef(false);
     const subtitlesEnabled = React.useRef(true);
     const defaultAudioTrackSelected = React.useRef(false);
+    const playingOnExternalDevice = React.useRef(false);
     const [error, setError] = React.useState(null);
 
     const isNavigating = React.useRef(false);
 
+    const playbackSpeed = React.useRef(video.state.playbackSpeed || 1);
     const pressTimer = React.useRef(null);
     const longPress = React.useRef(false);
+    const controlBarRef = React.useRef(null);
 
     const HOLD_DELAY = 200;
 
@@ -194,6 +197,7 @@ const Player = ({ urlParams, queryParams }) => {
     }, []);
 
     const onPlayRequested = React.useCallback(() => {
+        playingOnExternalDevice.current = false;
         video.setPaused(false);
         setSeeking(false);
     }, []);
@@ -222,8 +226,13 @@ const Player = ({ urlParams, queryParams }) => {
         seek(time, video.state.duration, video.state.manifest?.name);
     }, [video.state.duration, video.state.manifest]);
 
-    const onPlaybackSpeedChanged = React.useCallback((rate) => {
+    const onPlaybackSpeedChanged = React.useCallback((rate, skipUpdate) => {
         video.setPlaybackSpeed(rate);
+
+        if (skipUpdate) return;
+
+        playbackSpeed.current = rate;
+
     }, []);
 
     const onSubtitlesTrackSelected = React.useCallback((id) => {
@@ -417,7 +426,9 @@ const Player = ({ urlParams, queryParams }) => {
     }, [video.state.time, video.state.duration, video.state.manifest, seeking]);
 
     React.useEffect(() => {
-        if (video.state.paused !== null) {
+        if (playingOnExternalDevice.current && video.state.paused === false) {
+            onPauseRequested();
+        } else if (video.state.paused !== null) {
             pausedChanged(video.state.paused);
         }
     }, [video.state.paused]);
@@ -512,6 +523,7 @@ const Player = ({ urlParams, queryParams }) => {
         defaultSubtitlesSelected.current = false;
         defaultAudioTrackSelected.current = false;
         nextVideoPopupDismissed.current = false;
+        playingOnExternalDevice.current = false;
         // we need a timeout here to make sure that previous page unloads and the new one loads
         // avoiding race conditions and flickering
         setTimeout(() => isNavigating.current = false, 1000);
@@ -553,6 +565,7 @@ const Player = ({ urlParams, queryParams }) => {
         };
         const onCoreEvent = ({ event }) => {
             if (event === 'PlayingOnDevice') {
+                playingOnExternalDevice.current = true;
                 onPauseRequested();
             }
         };
@@ -717,6 +730,18 @@ const Player = ({ urlParams, queryParams }) => {
         }
     }, [video.state.playbackSpeed, toggleSpeedMenu]);
 
+    onShortcut('speedUp', () => {
+        if (video.state.playbackSpeed !== null) {
+            onPlaybackSpeedChanged(Math.min(video.state.playbackSpeed + 0.25, 2));
+        }
+    }, [video.state.playbackSpeed, onPlaybackSpeedChanged]);
+
+    onShortcut('speedDown', () => {
+        if (video.state.playbackSpeed !== null) {
+            onPlaybackSpeedChanged(Math.max(video.state.playbackSpeed - 0.25, 0.25));
+        }
+    }, [video.state.playbackSpeed, onPlaybackSpeedChanged]);
+
     onShortcut('statisticsMenu', () => {
         closeMenus();
         const stream = player.selected?.stream;
@@ -747,7 +772,7 @@ const Player = ({ urlParams, queryParams }) => {
 
             pressTimer.current = setTimeout(() => {
                 longPress.current = true;
-                onPlaybackSpeedChanged(2);
+                onPlaybackSpeedChanged(2, true);
             }, HOLD_DELAY);
         };
 
@@ -761,7 +786,7 @@ const Player = ({ urlParams, queryParams }) => {
             if (e.code === 'Space') {
                 clearTimeout(pressTimer.current);
                 pressTimer.current = null;
-                onPlaybackSpeedChanged(1);
+                onPlaybackSpeedChanged(playbackSpeed.current);
             }
         };
 
@@ -779,12 +804,13 @@ const Player = ({ urlParams, queryParams }) => {
 
         const onMouseDownHold = (e) => {
             if (e.button !== 0) return; // left mouse button only
+            if (controlBarRef.current && controlBarRef.current.contains(e.target)) return;
 
             longPress.current = false;
 
             pressTimer.current = setTimeout(() => {
                 longPress.current = true;
-                onPlaybackSpeedChanged(2);
+                onPlaybackSpeedChanged(2, true);
             }, HOLD_DELAY);
         };
 
@@ -794,7 +820,7 @@ const Player = ({ urlParams, queryParams }) => {
             clearTimeout(pressTimer.current);
 
             if (longPress.current) {
-                onPlaybackSpeedChanged(1);
+                onPlaybackSpeedChanged(playbackSpeed.current);
             }
         };
 
@@ -923,6 +949,7 @@ const Player = ({ urlParams, queryParams }) => {
                     null
             }
             <ControlBar
+                ref={controlBarRef}
                 className={classnames(styles['layer'], styles['control-bar-layer'])}
                 paused={video.state.paused}
                 time={video.state.time}
